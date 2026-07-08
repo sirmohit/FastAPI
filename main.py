@@ -28,7 +28,7 @@ def view():
 
 # endpoint of the API to view a specific patient record by ID
 @app.get("/patient/{patient_id}")
-def get_patient(patient_id:str = Path(..., description = "The ID of the patient in the database", example="P001")):
+def get_patient(patient_id:str = Path(..., description = "The ID of the patient in the database", examples="P001")):
     # load the data of al the patients
     data = load_data()
     
@@ -116,4 +116,82 @@ def create_patient(patient:Patient):
     save_data(data)
 
     return JSONResponse(status_code = 201,content = {"message":"Patient created successfully"})
-                  
+        
+#----------------------------------------------------------
+
+#creating the route for the put and delete
+
+class PatientUpdate(BaseModel):
+    
+    name: Annotated[Optional[str], Field(description="The name of the patient")] = None
+    email: Annotated[Optional[EmailStr], Field(description="The email of the patient")] = None
+    city: Annotated[Optional[str], Field(description="The city of the patient")] = None
+    age: Annotated[
+        Optional[int],
+        Field(gt=0, lt=120, description="The age of the patient")
+    ] = None
+    gender: Annotated[
+        Optional[Literal["Male", "Female", "Other"]],
+        Field(description="Gender of the patient")
+    ] = None
+    height: Optional[float] = None
+    weight: Optional[float] = None
+    married: Optional[bool] = None
+    allergies: Optional[List[str]] = None
+    contact_details: Optional[Dict[str, str]] = None
+
+
+@app.put("/update/{patient_id}")
+def update_patient(patient_id: str, patient_update:PatientUpdate):
+
+    # load data
+    data = load_data()
+
+    # check whether patient is present for the particular id
+    if patient_id not in data:
+        raise HTTPException(status_code=404, detail = "patient is not found")
+    
+    existing_patient_info = data[patient_id]
+
+    updated_info = patient_update.model_dump(exclude_unset=True)
+
+    for key,value in updated_info.items():
+        existing_patient_info[key] = value
+
+    #calculate the bmi amd verdct based on hte updated data
+    # existing_patient_ifo > pydantic model > updated bmi + vardict
+
+    existing_patient_info["id"] = patient_id
+    patient_pydantic_object = Patient(**existing_patient_info)
+
+    # pydantic object > dict
+    existing_patient_info = patient_pydantic_object.model_dump(exclude = "id")
+
+    #add this data 
+    data[patient_id] = existing_patient_info
+
+    #save data
+    save_data(data)
+
+    # retuning response
+    return JSONResponse(status_code=200, content = {"message":"patient updated"})
+
+
+#--------------------------------------------------------------------------------------------------------------
+
+#end point to delete recrd
+
+@app.delete("/delete/{patient_id}")
+def delete_data(patient_id:str):
+
+    data = load_data()
+
+    if patient_id not in  data:
+        raise HTTPException(status_code = 400, detail="Patient not found")
+    
+    del data[patient_id]
+
+    save_data(data)
+
+    return JSONResponse(status_code=200, content="Patient data deleted")
+
